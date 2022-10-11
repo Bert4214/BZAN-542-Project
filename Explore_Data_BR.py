@@ -1,61 +1,33 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
-
-DATA = pd.read_table('songs_normalize.csv', delimiter=',')
-
-# Change milliseconds to seconds 
-DATA['duration_ms'] = DATA['duration_ms'] * 0.001
-DATA.rename(columns={'duration_ms':'duration_s'}, inplace=True)
-
-# Add a column for duration in minutes 
-DATA['duration_m'] = DATA['duration_s'] / 60
-
-# Summary statistics 
-DATA.duration_s.describe()
-DATA.duration_m.describe()
-DATA.danceability.describe()
-DATA.popularity.describe()
-DATA.energy.describe()
-DATA.tempo.describe()
-
-# Top 5 in popularity
-DATA.popularity.sort_values(ascending=False).head()
-
-top_pop = [1322, 1311, 201, 1613, 6]
-DATA.iloc[top_pop,:]
-
-# Top 5 in danceability
-DATA.danceability.sort_values(ascending=False).head()
-
-top_dance = [714, 425, 225, 602, 1428]
-DATA.iloc[top_dance,:]
-
-# Number of songs by year
-DATA.groupby(['year']).size()
 
 
+spotify_songs = pd.read_csv('spotify_songs.csv', delimiter=',')
 
-## Simple Regression 
-model = LinearRegression()
-x = np.array(DATA['danceability']).reshape((-1,1))
-y = np.array(DATA['popularity'])
-model.fit(x,y)
+## Find rows containing NA
 
-# R-Square
-r_sq = model.score(x,y)
-print(f"coefficient of determination: {r_sq}")
+# Remove songs with multiple artists containing NA
+MultArtistsRemove = spotify_songs[spotify_songs['artist_name'].str.contains(',', na=False) == False]
 
-# Intercept and Slope
-print(f"intercept: {model.intercept_}")
-print(f"slope: {model.coef_}")
+# Remove missing value rows 
+MultArtistsRemove[MultArtistsRemove['genres'].isna()]
+MultArtistsRemove[MultArtistsRemove['track_name'].isna()]
+NoMoreNAs = MultArtistsRemove.dropna(subset=['genres','track_name'])  # Only leaves 468,928 rows 
+NoMoreNAs.isna().sum()
 
-# Preidction
-y_pred = model.predict(x)
-print(f"predicted response:\n{y_pred}")
+# Edit rows with NA without removing
+NoNa = spotify_songs.replace(['NA',','],'', regex=True)  # Replace NA strings with ''
+len(NoNa)
+NoNa.isna().sum()
+NoMoreNAs = NoNa.dropna(subset=['genres','track_name']) # Delete rows with entirely missing values 
+NoMoreNAs.isna().sum()
+len(NoMoreNAs)
+NoMoreNAs['artist_popularity'] = pd.to_numeric(NoMoreNAs['artist_popularity']) 
+NoMoreNAs.isna().sum() # Now there is NAs...
+NoMoreNAs[NoMoreNAs['artist_popularity'].isna()] # locate the new NAs
 
+NoMoreNAs.info()  # Look at variable types in dataframe
 
+NoMoreNAs.describe()  # summary stats for the NA-free dataset 
 
-# Correlation stuff
-DATA['popularity'].corr(DATA['danceability'])
-DATA['popularity'].corr(DATA['duration_s'])
+NoMoreNAs.to_csv('Spotify_Songs_NoNA.csv', sep='\t')  # Create CSV file with no more NAs
