@@ -1,0 +1,226 @@
+---
+title: "1950s_ARULES_DTree"
+author: "Barrett Ray"
+date: "2022-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Setup And Base Info
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+Data_1950 <- read.csv('spotify_1950s.csv')
+
+spotify_1950s = Data_1950[,-c(1:4,8:10,24:25)]
+
+ggplot(data=Data_1950, aes(x=popularity)) + geom_histogram() + theme_bw()
+ggplot(data=Data_1950, aes(x=duration_ms)) + geom_histogram() + theme_bw()
+ggplot(data=Data_1950, aes(x=as.factor(year),y=popularity)) + geom_boxplot() + theme_bw()
+
+summary_df <- Data_1950 %>% 
+                group_by(year) %>% 
+                summarise(AvgPop = mean(popularity, na.rm = TRUE),
+                      AvgArtPop = mean(artist_popularity, na.rm = TRUE),
+                      AvgFollow = mean(followers, na.rm = TRUE),
+                      AvgTempo = mean(tempo, na.rm = TRUE),
+                      AvgDance = mean(danceability, na.rm = TRUE),
+                      AvgEnergy = mean(energy, na.rm = TRUE),
+                      AvgDur = mean(duration_ms, na.rm = TRUE),
+                      NumExp = sum(explicit),
+                      NumArtists = length(unique(id_artists)))
+
+```
+
+## Linear Regression
+
+```{r}
+library(regclass)
+
+popular <- lm(popularity ~ danceability + energy + speechiness + acousticness, data = spotify_1950s)
+summary(popular)
+
+art_pop <- lm(artist_popularity ~ popularity + followers + explicit, data = spotify_1950s)
+summary(art_pop)
+```
+
+## Variable Discretation
+
+```{r}
+library(arules)
+## Song Popularity
+summary(spotify_1950s$popularity)
+summary(discretize(spotify_1950s$popularity,breaks=2))
+x <- spotify_1950s$popularity
+summary( cut(x,c(-1,5,77)))
+x <-cut(x,c(-1,5,77))
+levels(x) <- c("Low","High")
+spotify_1950s$popularity <- x
+
+## Duration
+summary(spotify_1950s$duration_ms)
+summary(discretize(spotify_1950s$duration_ms, breaks = 5))
+x <- spotify_1950s$duration_ms
+summary( cut(x,c(0,143000,172000,198000,265000,3660000)))
+x <-cut(x,c(0,143000,172000,198000,265000,3660000))
+levels(x) <- c("<143000ms","143000 to 172000ms","172000 to 198000ms",
+               "198000 to 265000ms","265000 to 3660000ms",">3660000ms")
+spotify_1950s$duration_ms <- x
+
+## Explicit
+summary(spotify_1950s$explicit)
+summary(as.factor(spotify_1950s$explicit))
+spotify_1950s$explicit <- as.factor(spotify_1950s$explicit)
+
+## Danceability
+summary(spotify_1950s$danceability)
+summary(discretize(spotify_1950s$danceability, breaks = 5))
+x <- spotify_1950s$danceability
+summary( cut(x,c(-1,0.5,0.75,1)))
+x <- cut(x,c(-1,0.5,0.75,1))
+levels(x) <- c("0 to 0.5", "0.5 to 0.75", "0.75 to 1")
+spotify_1950s$danceability <- x
+
+## Energy
+summary(spotify_1950s$energy)
+summary(discretize(spotify_1950s$energy, breaks = 5))
+x <- spotify_1950s$energy
+summary( cut(x,c(-1,0.5,0.75,1)))
+x <- cut(x,c(-1,0.5,0.75,1))
+levels(x) <- c("0 to 0.5", "0.5 to 0.75", "0.75 to 1")
+spotify_1950s$energy <- x
+
+## Key
+summary(spotify_1950s$key)
+table(spotify_1950s$key)
+summary(discretize(spotify_1950s$key, breaks = 5))
+spotify_1950s$key <- as.factor(spotify_1950s$key)
+
+## Loudness
+summary(spotify_1950s$loudness)
+summary(discretize(spotify_1950s$loudness, breaks = 5))
+x <- spotify_1950s$loudness
+summary( cut(x,c(-50,-18,-13,-9,4)))
+x <- cut(x,c(-50,-18,-13,-9,4))
+levels(x) <- c("-50 to -18","-18 to -13","-13 to -9","-9 to 4")
+spotify_1950s$loudness <- x
+
+## Mode
+table(spotify_1950s$mode)
+spotify_1950s$mode <- as.factor(spotify_1950s$mode)
+
+## Speachiness
+summary(spotify_1950s$speechiness)
+summary(discretize(spotify_1950s$speechiness, breaks = 5))
+x <- spotify_1950s$speechiness
+summary( cut(x, c(-1,0.04,0.05,0.08,1)))
+x <- cut(x, c(-1,0.04,0.05,0.08,1))
+levels(x) <- c("0 to 0.04","0.04 to 0.05","0.05 to 0.08","0.08 to 1")
+spotify_1950s$speechiness <- x
+
+## Acousticness
+summary(spotify_1950s$acousticness)
+summary(discretize(spotify_1950s$acousticness, breaks = 5))
+x <- spotify_1950s$acousticness
+summary( cut(x, c(-1,0.7,0.85,0.95,0.98,1)))
+x <- cut(x, c(-1,0.7,0.85,0.95,0.98,1))
+levels(x) <- c("0 to 0.7","0.7 to 0.85","0.85 to 0.95","0.95 to 0.98","0.98 to 1")
+spotify_1950s$acousticness <- x
+
+## Instrumentalness
+summary(spotify_1950s$instrumentalness)
+summary(discretize(spotify_1950s$instrumentalness, breaks = 5))
+x <- spotify_1950s$instrumentalness
+summary( cut(x, c(-1,0.0001,0.02,0.7,1)))
+x <- cut(x, c(-1,0.0001,0.02,0.7,1))
+levels(x) <- c("0 to 0.0001","0.0001 to 0.02","0.02 to 0.7","0.7 to 1")
+spotify_1950s$instrumentalness <- x
+
+## Liveness
+summary(spotify_1950s$liveness)
+summary(discretize(spotify_1950s$liveness, breaks = 5))
+x <- spotify_1950s$liveness
+summary( cut(x,c(-1,0.1,0.12,0.18,0.3,1)))
+x <- cut(x,c(-1,0.1,0.12,0.18,0.3,1))
+levels(x) <- c("0 to 0.1","0.1 to 0.12","0.12 to 0.18","0.18 to 0.3","0.3 to 1")
+spotify_1950s$liveness <- x
+
+## Valence 
+summary(spotify_1950s$valence)
+summary(discretize(spotify_1950s$valence, breaks = 5))
+x <- spotify_1950s$valence
+summary( cut(x, c(-1,0.2,0.4,0.6,0.7,1)))
+x <- cut(x, c(-1,0.2,0.4,0.6,0.7,1))
+levels(x) <- c("0 to 0.2","0.2 to 0.4","0.4 to 0.6","0.6 to 0.7","0.7 to 1")
+spotify_1950s$valence <- x
+
+## Tempo
+summary(spotify_1950s$tempo)
+summary(discretize(spotify_1950s$tempo, beaks = 5))
+x <- spotify_1950s$tempo
+summary( cut(x,c(-1,92,120,220)))
+x <- cut(x,c(-1,92,120,220))
+levels(x) <- c("< 92", "92 to 120", "> 120")
+spotify_1950s$tempo <- x
+
+## Time Signature
+summary(spotify_1950s$time_signature)
+table(spotify_1950s$time_signature)
+x <- spotify_1950s$time_signature
+summary( cut(x, c(-1,3,4,5)))
+x <- cut(x, c(-1,3,4,5))
+levels(x) <- c("< 3","3 to 4","> 4")
+spotify_1950s$time_signature <- x
+
+## Followers
+summary(spotify_1950s$followers)
+summary(discretize(spotify_1950s$followers, breaks = 5))
+x <- spotify_1950s$followers
+summary( cut(x, c(-1,2000,26000,165000,700000,5350000)))
+x <- cut(x, c(-1,2000,26000,165000,700000,5350000))
+levels(x) <- c("0 to 2000","2000 to 26000","26000 to 165000","165000 to 700000","700000 to 5350000")
+spotify_1950s$followers <- x
+
+## Artist Popularity
+summary(spotify_1950s$artist_popularity)
+summary(discretize(spotify_1950s$artist_popularity, breaks = 5))
+x <- spotify_1950s$artist_popularity
+summary( cut(x, c(-1,25,43,54,66,81)))
+x <- cut(x, c(-1,25,43,54,66,81))
+levels(x) <- c("0 to 25","25 to 43","43 to 54","54 to 66","66 to 81")
+spotify_1950s$artist_popularity <- x
+
+## Year
+table(spotify_1950s$year)
+spotify_1950s$year <- as.factor(spotify_1950s$year)
+class(spotify_1950s$year)
+```
+
+## Factor Analysis
+
+```{r}
+library(rpart)
+
+Trans <- as(spotify_1950s, "transactions")
+summary(Trans)
+itemFrequency(Trans)["popularity=High"]
+RULES <- apriori(Trans,parameter = list(supp=200/length(Trans),conf=0.90,maxlen=4),
+                 appearance = list(default="lhs",rhs="popularity=High"), control=list(verbose=FALSE))
+RULES <- RULES[!is.redundant(RULES)]
+RULES <- RULES[is.significant(RULES,SPOTIFY.TRANS)]
+length(RULES)
+inspect(sort(RULES,by="confidence"))
+
+
+TREE <- rpart(popularity ~ .,data=spotify_1950s)
+TREE$cptable
+summarize_tree(TREE)
+visualize_model(TREE)
+```
+
+
+
