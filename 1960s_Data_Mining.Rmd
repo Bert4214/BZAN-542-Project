@@ -1,0 +1,161 @@
+---
+title: "1960s_Data_Mining"
+author: "Barrett Ray"
+date: "2022-12-12"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set Up
+
+```{r}
+## Data Modeling for 1960s Songs
+Data_1960 = read.csv("spotify_1960s.csv")
+
+# Data Prep for Modeling
+spotify_1960s_modeling = Data_1960[,-c(1:4,8:10,24:25)]
+modeling1960 = spotify_1960s_modeling
+modeling1960 = modeling1960[complete.cases(modeling1960),]
+summary(modeling1960$popularity)
+class(modeling1960$popularity)
+
+modeling1960 = modeling1960[sample(nrow(modeling1960),5000),]
+
+library(regclass)
+library(robustbase)
+library(MASS)
+library(caret)
+library(gbm)
+
+infodensity <- nearZeroVar(modeling1960, saveMetrics= TRUE)
+infodensity
+```
+
+## Training Data
+
+```{r}
+set.seed(124)
+train.rows <- sample(1:nrow(modeling1960),0.7*nrow(modeling1960))
+TRAIN <- modeling1960[train.rows,]
+HOLDOUT <- modeling1960[-train.rows,]
+
+fitControl <- trainControl(method="cv",number=5,verboseIter = FALSE)
+```
+
+## Modeling 
+
+```{r}
+NAIVE <- mean(TRAIN$popularity)
+sqrt(mean((NAIVE-HOLDOUT$popularity)^2))
+postResample(rep(NAIVE,nrow(HOLDOUT)),HOLDOUT$popularity)
+
+#Regularized Linear Regression
+glmnetGrid <- expand.grid(alpha = seq(0,.1,.25),lambda = 10^seq(-1,-.5,by=.5))
+set.seed(124); GLMnet <- train(popularity~.,data=TRAIN,method='glmnet', tuneGrid=glmnetGrid,
+                               trControl=fitControl, preProc = c("center", "scale"))
+
+plot(GLMnet)  #See how error changes with parameters
+GLMnet$bestTune #Gives best parameters
+GLMnet$results[rownames(GLMnet$bestTune),]  #Just the row with the optimal choice of tuning parameter
+postResample(predict(GLMnet,newdata=HOLDOUT),HOLDOUT$popularity)  #RMSE on holdout
+# RMSE = 11.1618360  RSQRD = 0.2580324  MAE = 8.6391642 
+
+
+
+#K Nearest Neighbors
+knnGrid <- expand.grid(k=1:10)
+set.seed(124); KNN <- train(popularity~.,data=TRAIN,method='knn', tuneGrid=knnGrid,
+                            trControl=fitControl, preProc = c("center", "scale"))
+
+plot(KNN)  #See how error varies with k
+KNN$bestTune #Gives best parameters
+KNN$results[rownames(KNN$bestTune),]  #Just the row with the optimal choice of tuning parameter
+postResample(predict(KNN,newdata=HOLDOUT),HOLDOUT$popularity)  #RMSE on holdout
+# RMSE = 11.7133494  RSQRD = 0.1900824  MAE = 9.0126404
+
+#Vanilla Partition
+rpartGrid <- expand.grid(cp=10^seq(-1,0.15,length=50))
+set.seed(124); RPART <- train(popularity~.,data=TRAIN,method="rpart",trControl=fitControl,
+                              tuneGrid=rpartGrid,preProc=c("center","scale"))
+
+plot(RPART)  #See how performance varies with cp parameters
+RPART$results[rownames(RPART$bestTune),]   #best choice
+varImp(RPART)  #Variable importance between 0-100
+postResample(predict(RPART,newdata=HOLDOUT),HOLDOUT$popularity)  #RMSE on holdout
+# RMSE = 12.39556378  RSQRD = 0.08510065  MAE = 9.63234183 
+
+
+#Random Forest
+forestGrid <- expand.grid(mtry=c(1:17))
+fitControl <- trainControl(method = "cv",number = 5, allowParallel = TRUE)
+set.seed(124); FOREST <- train(popularity~.,data=TRAIN,method="rf",preProc=c("center","scale"),
+                               trControl=fitControl,tuneGrid=forestGrid, importance=TRUE)
+
+plot(FOREST)
+FOREST$results[rownames(FOREST$bestTune),]   #best choice
+varImp(FOREST)  #Variable importance between 0-100
+postResample(predict(FOREST,newdata=HOLDOUT),HOLDOUT$popularity)  #RMSE on holdout 
+# RMSE = 10.7897554  RSQDRD = 0.3078802  MAE = 8.3083545
+
+
+
+# Boosted Tree
+gbmGrid <- expand.grid(n.trees=c(350,400,300),
+                       interaction.depth=9:11,
+                       shrinkage=c(.045,.05,.055),
+                       n.minobsinnode=c(4:5))
+fitControl <- trainControl(method = "cv",number = 5, allowParallel = TRUE)
+set.seed(124); GBM <- train(popularity~.,data=TRAIN,method="gbm",trControl=fitControl,
+                            tuneGrid=gbmGrid,preProc=c("center","scale"),verbose=FALSE)
+
+plot(GBM)
+GBM$results[rownames(GBM$bestTune),]
+varImp(GBM)  #need to have library(gbm) loaded up
+postResample(predict(GBM,newdata=HOLDOUT),HOLDOUT$popularity)  #RMSE on holdout
+# RMSE = 10.9249608  RSQRD = 0.2907366  MAE = 8.3714317 
+
+
+
+#Linear SVM
+# paramGrid <- expand.grid(C=10^seq(-2,3,length=21))
+# set.seed(123); SVM.linear <- train(popularity~.,data=TRAIN, method='svmLinear',
+#                                    trControl=fitControl,tuneGrid=paramGrid,preProc=c("center", "scale"))
+# 
+# plot(SVM.linear)
+# SVM.linear$results[rownames(SVM.linear$bestTune),]
+# postResample(HOLDOUT$popularity,predict(SVM.linear,newdata=HOLDOUT))
+
+
+
+## DALEX Plots
+# DALEX plots help further breakdown how each variable is affecting the 
+# popularity score of a song. I'm randomly sampling from the original data
+# to develop the plots using the GBM model.
+
+##Understanding
+library(DALEX)
+
+#Make special datasets for examining models
+TRAIN.PREDICTORS <- TRAIN
+TRAIN.PREDICTORS$popularity <- NULL
+TRAIN.TARGET <- TRAIN$popularity
+
+#Example building an explainer with GBM
+shop_explainer <- explain(GBM, data = TRAIN.PREDICTORS,  y = TRAIN.TARGET)
+shop_vi <- model_parts(shop_explainer, loss_function = loss_root_mean_square)
+shop_vi
+plot(shop_vi)
+
+# Predicting Specific Songs
+specific.alumnus <- spotify_1960s_modeling[sample(nrow(spotify_1960s_modeling),1),]
+plot( predict_parts(explainer = shop_explainer, new_observation = specific.alumnus, type = "break_down") )
+Data_1960[891,]
+
+specific.alumnus1 <- spotify_1960s_modeling[sample(nrow(spotify_1960s_modeling),1),]
+plot( predict_parts(explainer = shop_explainer, new_observation = specific.alumnus1, type = "break_down") )
+Data_1960[1444,]
+```
+
