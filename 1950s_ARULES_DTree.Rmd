@@ -22,18 +22,20 @@ ggplot(data=Data_1950, aes(x=popularity)) + geom_histogram() + theme_bw()
 ggplot(data=Data_1950, aes(x=duration_ms)) + geom_histogram() + theme_bw()
 ggplot(data=Data_1950, aes(x=as.factor(year),y=popularity)) + geom_boxplot() + theme_bw()
 
-summary_df <- Data_1950 %>% 
-                group_by(year) %>% 
-                summarise(AvgPop = mean(popularity, na.rm = TRUE),
-                      AvgArtPop = mean(artist_popularity, na.rm = TRUE),
-                      AvgFollow = mean(followers, na.rm = TRUE),
-                      AvgTempo = mean(tempo, na.rm = TRUE),
-                      AvgDance = mean(danceability, na.rm = TRUE),
-                      AvgEnergy = mean(energy, na.rm = TRUE),
-                      AvgDur = mean(duration_ms, na.rm = TRUE),
-                      NumExp = sum(explicit),
-                      NumArtists = length(unique(id_artists)))
+summary_df_1950 <- Data_1950 %>% 
+                      group_by(year) %>% 
+                      summarise(AvgPop = mean(popularity, na.rm = TRUE),
+                            AvgArtPop = mean(artist_popularity, na.rm = TRUE),
+                            AvgFollow = mean(followers, na.rm = TRUE),
+                            AvgTempo = mean(tempo, na.rm = TRUE),
+                            AvgDance = mean(danceability, na.rm = TRUE),
+                            AvgEnergy = mean(energy, na.rm = TRUE),
+                            AvgDur = mean(duration_ms, na.rm = TRUE),
+                            NumExp = sum(explicit),
+                            NumArtists = length(unique(id_artists)))
 
+ggplot(data = summary_df_1950, aes(x=as.factor(year), y = AvgPop)) + geom_line(color = 'black') + geom_point()
+ggplot(data = summary_df_1950, aes(x=as.factor(year), y = AvgEnergy)) + geom_line(color = 'black') + geom_point()
 ```
 
 ## Linear Regression
@@ -211,7 +213,7 @@ itemFrequency(Trans)["popularity=High"]
 RULES <- apriori(Trans,parameter = list(supp=200/length(Trans),conf=0.90,maxlen=4),
                  appearance = list(default="lhs",rhs="popularity=High"), control=list(verbose=FALSE))
 RULES <- RULES[!is.redundant(RULES)]
-RULES <- RULES[is.significant(RULES,SPOTIFY.TRANS)]
+RULES <- RULES[is.significant(RULES,Trans)]
 length(RULES)
 inspect(sort(RULES,by="confidence"))
 
@@ -220,6 +222,8 @@ TREE <- rpart(popularity ~ .,data=spotify_1950s)
 TREE$cptable
 summarize_tree(TREE)
 visualize_model(TREE)
+
+
 ```
 
 
