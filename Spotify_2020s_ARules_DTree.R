@@ -1,12 +1,12 @@
 library(regclass)
 library(arules)
 
-## Decision Tree and Association Rules for 2020s Songs
-spotify_2020s = read.csv("spotify_2020s.csv")
+## Decision Tree and Association Rules for 1970s Songs
+spotify_1970s = read.csv("spotify_1970s.csv")
 
 ## Data Prep
-spotify_2020s1 = spotify_2020s[,-c(1:4,8:10,24:25)]
-spotify1 = spotify_2020s1
+spotify_1970s1 = spotify_1970s[,-c(1:4,8:10,24:25)]
+spotify1 = spotify_1970s1
 spotify1 = spotify1[complete.cases(spotify1),]
 
 ## Variable Discretization
@@ -197,12 +197,14 @@ plot(popularity ~ year, data=spotify1)
 
 ## DECISION TREE
 #Combos
-TREE <- rpart(popularity ~ .,data=spotify1,cp= 0.0097863)
+TREE <- rpart(popularity ~ .,data=spotify1,cp= 0.000025)
 TREE$cptable
 summarize_tree(TREE)
 visualize_model(TREE)
 # artist popularity and followers tend to play the biggest role in determining
 # popularity in the decision tree
+
+
 
 ## ASSOCIATION RULES
 
@@ -212,7 +214,7 @@ mean(spotify1$popularity=="High")
 SPOTIFY.TRANS <- as(spotify1,"transactions")
 itemFrequency(SPOTIFY.TRANS)["popularity=High"]
 #Consider pockets of size 200 or more
-RULES <- apriori(SPOTIFY.TRANS,parameter = list(supp=200/length(SPOTIFY.TRANS),conf=0.50,maxlen=4),
+RULES <- apriori(SPOTIFY.TRANS,parameter = list(supp=100/length(SPOTIFY.TRANS),conf=0.045,maxlen=4),
                  appearance = list(default="lhs",rhs="popularity=High"), control=list(verbose=FALSE))
 RULES <- RULES[!is.redundant(RULES)]
 RULES <- RULES[is.significant(RULES,SPOTIFY.TRANS)]
@@ -222,25 +224,18 @@ inspect(sort(RULES,by="confidence"))
 # association rules though, such as explicit, tempo, and liveness
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# summary info
+summary_df_1970 <- spotify_1970s %>% 
+            group_by(year) %>% 
+            summarise(AvgPop = mean(popularity, na.rm = TRUE),
+            AvgArtPop = mean(artist_popularity, na.rm = TRUE),
+            AvgFollow = mean(followers, na.rm = TRUE),
+            AvgTempo = mean(tempo, na.rm = TRUE),
+            AvgDance = mean(danceability, na.rm = TRUE),
+            AvgEnergy = mean(energy, na.rm = TRUE),
+            AvgDur = mean(duration_ms, na.rm = TRUE),
+            NumExp = sum(explicit),
+            NumArtists = length(unique(id_artists)))
 
 
 
